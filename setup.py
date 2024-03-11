@@ -24,13 +24,13 @@ setup(
         "console_scripts": ['itsybitsy = itsybitsy.itsybitsy:main']
     },
     install_requires=[
-        'asyncssh~=2.2.1',
+        'asyncssh~=2.14',
         'boto3~=1.16.42',
         'configargparse~=1.2.3',
         'coolname~=1.1.0',
         'faker~=4.1.8',
         'kubernetes~=11.0.0',
-        'paramiko~=2.7.2',
+        'paramiko~=3.4',
         'pyyaml~=5.3.1',
         'graphviz~=0.13.2',
         'termcolor~=1.1.0',
