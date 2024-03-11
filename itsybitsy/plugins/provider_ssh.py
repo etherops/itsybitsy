@@ -27,7 +27,7 @@ connect_timeout = 5
 connection_semaphore = None
 connection_semaphore_spaces_used = 0
 connection_semaphore_spaces_min = 10
-ssh_connect_args = {'known_hosts': None}
+ssh_connect_args = None
 
 
 class ProviderSSH(ProviderInterface):
@@ -50,7 +50,8 @@ class ProviderSSH(ProviderInterface):
                                help='Used by SSH Provider to determine node name')
 
     async def open_connection(self, address: str) -> SSHClientConnection:
-        if not bastion:
+        await _configure_connection_semaphore()
+        if not ssh_connect_args:
             await _configure(address)
         logs.logger.debug(f"Getting asyncio SSH connection for host {address}")
         async with connection_semaphore:
@@ -80,9 +81,12 @@ class ProviderSSH(ProviderInterface):
 
 
 async def _get_connection(host: str, retry_num=0) -> asyncssh.SSHClientConnection:
+    logs.logger.debug(f"Getting asyncio SSH connection for host {host}")
     try:
-        logs.logger.debug(f"Getting asyncio SSH connection for host {host}")
-        return await bastion.connect_ssh(host, **ssh_connect_args)
+        if bastion:
+            logs.logger.debug(f"Using bastion: {bastion}")
+            return await bastion.connect_ssh(host, **ssh_connect_args)
+        return await asyncssh.connect(host, **ssh_connect_args)
     except ChannelOpenError:
         raise TimeoutException(f"asyncssh.ChannelOpenError encountered opening SSH connection for {host}")
     except Exception as e:
@@ -113,20 +117,25 @@ async def _occupy_one_sempahore_space() -> None:
 
 # configuration private functions
 async def _configure(address: str):
-    global bastion, connection_semaphore, ssh_connect_args
-    connection_semaphore = asyncio.BoundedSemaphore(constants.ARGS.ssh_concurrency)
+    global bastion, ssh_connect_args
+    # SSH CONNECT ARGS
+    ssh_connect_args = {'known_hosts': None}
     ssh_config = _get_ssh_config_for_host(address)
-    jump_server_address = _get_jump_server_for_host(ssh_config)
     ssh_connect_args['username'] = ssh_config.get('user')
     if constants.ARGS.ssh_passphrase:
         ssh_connect_args['passphrase'] = getpass.getpass(colored("Enter SSH key passphrase:", 'green'))
 
+    # BASTION
+    bastion_address = _get_jump_server_for_host(ssh_config)
+    if not bastion_address:
+        return
+
     try:
         bastion = await asyncio.wait_for(
-            asyncssh.connect(jump_server_address, **ssh_connect_args), timeout=constants.ARGS.ssh_bastion_timeout
+            asyncssh.connect(bastion_address, **ssh_connect_args), timeout=constants.ARGS.ssh_bastion_timeout
         )
     except asyncio.TimeoutError:
-        print(colored(f"Timeout connecting to SSH bastion server: {jump_server_address}.  "
+        print(colored(f"Timeout connecting to SSH bastion server: {bastion_address}.  "
                       f"Try turning it off and on again.", 'red'))
         sys.exit(1)
     except asyncssh.PermissionDenied:
@@ -135,6 +144,11 @@ async def _configure(address: str):
                       f"(See https://www.ssh.com/ssh/add for details on that process) or try again using the "
                       f"--ssh-passphrase argument.  ", 'red'))
         sys.exit(1)
+
+
+async def _configure_connection_semaphore():
+    global connection_semaphore
+    connection_semaphore = asyncio.BoundedSemaphore(constants.ARGS.ssh_concurrency)
 
 
 def _get_ssh_config_for_host(host: str) -> dict:
@@ -164,7 +178,7 @@ def _get_ssh_config_for_host(host: str) -> dict:
     return ssh_config.lookup(host)
 
 
-def _get_jump_server_for_host(config: dict) -> str:
+def _get_jump_server_for_host(config: dict) -> Optional[str]:
     """
     :param config: ssh config in dict format as returned by paramiko.SSHConfig().lookup()
     """
@@ -174,15 +188,12 @@ def _get_jump_server_for_host(config: dict) -> str:
     bastion_host = proxyjump_host or proxycommand_host
 
     if not bastion_host:
-        print(colored(f"Required SSH directive ProxyJump (or ProxyCommand) not found (or misconfigured)"
-                      f" in {config_file_path}... Please correct your ssh config! SSH directives found:", 'red'))
-        constants.PP.pprint(config)
-        sys.exit(1)
+        return None
 
     bastion_config = _get_ssh_config_for_host(bastion_host)
 
     if 'hostname' not in bastion_config:
-        print(colored(f"{bastion_host} misconfigured in {config_file_path}...  "
+        print(colored(f"Bastion (proxy) SSH Host: ({bastion_host}) misconfigured in {config_file_path}...  "
               f"Please correct your ssh config! Contents:", 'red'))
         constants.PP.pprint(config)
         sys.exit(1)
