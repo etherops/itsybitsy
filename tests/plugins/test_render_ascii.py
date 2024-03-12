@@ -18,6 +18,21 @@ async def _helper_render_tree_with_timeout(tree: Dict[str, Node]) -> None:
     await asyncio.wait_for(render_ascii.render_tree(tree, [], sys.stdout), .1)
 
 
+@pytest.fixture
+def mock_termcolor_colored(mocker):
+    mock = mocker.patch('itsybitsy.plugins.render_ascii.colored', autospec=True)
+    mock.side_effect = lambda text, color, force_color: 'foo'
+    return mock
+
+
+def test_colored_force(mock_termcolor_colored):
+    test_text = "Hello, World!"
+    test_color = "red"
+    result = render_ascii.colored_force(test_text, test_color)
+    # Assert that termcolor_colored was called with the correct arguments
+    mock_termcolor_colored.assert_called_once_with(test_text, test_color, force_color=True)
+
+
 @pytest.mark.asyncio
 async def test_render_tree_case_seed(tree_stubbed, capsys):
     """Test a single seed node is printed correctly - no errors or edge cases"""

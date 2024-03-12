@@ -10,10 +10,19 @@ from collections import namedtuple
 from dataclasses import asdict
 from string import Template
 from termcolor import colored
+from termcolor.termcolor import Color
 from typing import List, Dict
 
 from itsybitsy import constants, logs, renderers
 from itsybitsy.node import Node
+
+
+def colored_force(text: str, color: Color) -> str:
+    """We are only doing this because tests fail if we don't force_color=True
+    due to a tty check in termcolor, and that we haven't figured out the secret
+    sauce to monkeypatching sys.stdin.istty() via fixture in tests where there
+    is no real tty!"""
+    return colored(text, color, force_color=True)
 
 
 class RendererAscii(renderers.RendererInterface):
@@ -170,17 +179,17 @@ def _render_node(node: Node, depth: int, prefix: str, is_last_sibling: bool, out
         branch += f"{bud}--{node.protocol.ref}--{terminus} "
 
     # hint display
-    info = colored('{INFO:FROM_HINT} ', 'cyan') if node.from_hint else ''
+    info = colored_force('{INFO:FROM_HINT} ', "cyan") if node.from_hint else ''
 
     # concise warning display
     concise_warnings = ''
     if not constants.ARGS.render_ascii_verbose and node.warnings:
-        concise_warnings = colored('{WARN:' + '|'.join(node.warnings) + '} ', 'yellow')
+        concise_warnings = colored_force('{WARN:' + '|'.join(node.warnings) + '} ', "yellow")
 
     # concise error display
     concise_errors = ''
     if not constants.ARGS.render_ascii_verbose and node.errors:
-        concise_errors = colored('{ERR:' + '|'.join(node.errors) + '} ', 'red')
+        concise_errors = colored_force('{ERR:' + '|'.join(node.errors) + '} ', "red")
 
     # newline for SEED nodes
     if 0 == depth:
@@ -222,13 +231,13 @@ def _render_node_errs_warns(node: Node, error_prefix: str, out):
     # warnings verbose display
     if node.warnings:
         for warning in node.warnings:
-            print(error_prefix + colored(f"└> WARN: ({warning}): ", "yellow") + warning_messages[warning],
+            print(error_prefix + colored_force(f"└> WARN: ({warning}): ", "yellow") + warning_messages[warning],
                   file=out)
 
     # error verbose display
     if node.errors:
         for error in node.errors:
-            print(error_prefix + colored(f"└> ERROR: ({error}): ", "red") + error_messages[error],
+            print(error_prefix + colored_force(f"└> ERROR: ({error}): ", "red") + error_messages[error],
                   file=out)
 
 
@@ -256,8 +265,8 @@ async def _wait_for_service_names(nodes: Dict[str, Node], depth: int) -> None:
             await asyncio.sleep(5)
     else:
         remaining = _remaining_nodes_for_debugging(nodes)
-        print(colored(f"Infinite wait interrupted waiting for {len(remaining)} services names for: ", 'red'))
-        print(colored(constants.PP.pformat(remaining), 'yellow'))
+        print(colored_force(f"Infinite wait interrupted waiting for {len(remaining)} services names for: ", "red"))
+        print(colored_force(constants.PP.pformat(remaining), "yellow"))
         sys.exit(1)
 
 

@@ -33,7 +33,7 @@ setup(
         'paramiko~=3.4',
         'pyyaml~=6.0',
         'graphviz>=0.13',
-        'termcolor~=1.1',
+        'termcolor~=2.0',
     ],
     extras_require={
         'test': [
