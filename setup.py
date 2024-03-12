@@ -32,7 +32,7 @@ setup(
         'kubernetes~=11.0',
         'paramiko~=3.4',
         'pyyaml~=6.0',
-        'graphviz~=0.13',
+        'graphviz>=0.13',
         'termcolor~=1.1',
     ],
     extras_require={
