@@ -31,7 +31,7 @@ setup(
         'faker>=4.1',
         'kubernetes~=11.0',
         'paramiko~=3.4',
-        'pyyaml~=5.3',
+        'pyyaml~=6.0',
         'graphviz~=0.13',
         'termcolor~=1.1',
     ],
