@@ -89,7 +89,7 @@ _provider_registry = PluginFamilyRegistry(ProviderInterface)
 
 
 def parse_provider_args(argparser: configargparse.ArgParser):
-    _provider_registry.parse_plugin_args(argparser)
+    _provider_registry.parse_plugin_args(argparser, constants.ARGS.disable_providers)
 
 
 def register_providers():

@@ -63,6 +63,9 @@ class PluginInterface:
     def register_cli_args(argparser: PluginArgParser):
         """Each plugin has a chance to register custom CLI args which will be prefixed with `self.ref()` """
 
+    def __str__(self):
+        return self.ref()
+
 
 class PluginFamilyRegistry:
     """Registry for plugins within a plugin Family"""
@@ -71,16 +74,16 @@ class PluginFamilyRegistry:
         self._cli_args_prefix = cli_args_prefix
         self._plugin_registry: Dict[str, PluginInterface] = {}
 
-    def parse_plugin_args(self, argparser: configargparse.ArgParser):
+    def parse_plugin_args(self, argparser: configargparse.ArgParser, disabled_classes: Optional[List[str]] = None):
         """Plugins are given an opportunity to register custom CLI arguments"""
-        for plugin in self._cls.__subclasses__():
+        for plugin in [c for c in self._cls.__subclasses__() if c.ref() not in (disabled_classes or [])]:
             plugin: PluginInterface
             prefix = f'{self._cli_args_prefix}-{plugin.ref()}' if self._cli_args_prefix else plugin.ref()
             plugin_argparser = PluginArgParser(prefix, argparser)
             plugin.register_cli_args(plugin_argparser)
 
     def register_plugins(self, disabled_classes: Optional[List[str]] = None):
-        for plugin in [c for c in self._cls.__subclasses__() if c not in (disabled_classes or [])]:
+        for plugin in [c for c in self._cls.__subclasses__() if c.ref() not in (disabled_classes or [])]:
             if plugin.ref() in self._plugin_registry:
                 raise PluginClobberException(f"Provider {plugin.ref()} already registered!")
             self._plugin_registry[plugin.ref()] = plugin()

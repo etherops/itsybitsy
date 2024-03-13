@@ -1,9 +1,10 @@
 # Copyright # Copyright 2020 Life360, Inc
 # SPDX-License-Identifier: Apache-2.0
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 import asyncio
+import configargparse
 import getpass
 import logging
 import os
@@ -39,7 +40,10 @@ def main():
     _set_debug_level()
     charlotte.init()
     _create_outputs_directory_if_absent()
-    _cli_command().exec()
+    command = _cli_command()
+    command.parse_args()
+    constants.ARGS, _ = cli_args.argparser.parse_known_args()
+    command.exec()
     print(f"\nGoodbye, {getpass.getuser()}\n", file=sys.stderr)
 
 
@@ -70,9 +74,14 @@ def _suppress_console_out():
 
 
 class Command:
+    def __init__(self, argparser: configargparse.ArgParser):
+        self._argparser = argparser
+
+    def parse_args(self):
+        raise NotImplementedError('Plugin Arg Parsing not implemented')
+
     def exec(self):
         self._initialize_plugins()
-        constants.ARGS = cli_args.argparser.parse_args()
         tree = self._generate_tree()
         _render(tree)
 
@@ -84,8 +93,11 @@ class Command:
 
 
 class RenderCommand(Command):
+    def parse_args(self):
+        renderers.parse_renderer_args(self._argparser)
+
     def _initialize_plugins(self):
-        _initialize_renderers()
+        renderers.register_renderers()
 
     def _generate_tree(self) -> Dict[str, node.Node]:
         if not constants.ARGS.output:
@@ -94,9 +106,13 @@ class RenderCommand(Command):
 
 
 class SpiderCommand(Command):
+    def parse_args(self):
+        renderers.parse_renderer_args(self._argparser)
+        providers.parse_provider_args(self._argparser)
+
     def _initialize_plugins(self):
-        _initialize_renderers(True)
-        _initialize_providers()
+        renderers.register_renderers()
+        providers.register_providers()
 
     def _generate_tree(self) -> Dict[str, node.Node]:
         tree = asyncio.get_event_loop().run_until_complete(_crawl_water_spout())
@@ -106,9 +122,9 @@ class SpiderCommand(Command):
 
 def _cli_command() -> Command:
     if cli_args.command_render == constants.ARGS.command:
-        return RenderCommand()
+        return RenderCommand(cli_args.render_subparser)
     elif cli_args.command_spider == constants.ARGS.command:
-        return SpiderCommand()
+        return SpiderCommand(cli_args.spider_subparser)
     else:
         print(colored(f"Invalid command: {constants.ARGS.command}.  Please file bug with maintainer.", 'red'))
         sys.exit(1)
@@ -143,20 +159,6 @@ def _parse_seed_tree() -> Dict[str, node.Node]:
             )
         for provider, address in [seed.split(':') for seed in constants.ARGS.seeds]
     }
-
-
-def _initialize_renderers(parse_spider_command_args: bool = False):
-    renderers.parse_renderer_args(cli_args.render_subparser)
-    if parse_spider_command_args:
-        renderers.parse_renderer_args(cli_args.spider_subparser)
-    constants.ARGS, _ = cli_args.argparser.parse_known_args()
-    renderers.register_renderers()
-
-
-def _initialize_providers():
-    providers.parse_provider_args(cli_args.spider_subparser)
-    constants.ARGS, _ = cli_args.argparser.parse_known_args()
-    providers.register_providers()
 
 
 def _create_outputs_directory_if_absent():
