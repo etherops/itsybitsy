@@ -21,7 +21,7 @@ def parse_args(registered_renderer_refs: List[str]) -> (configargparse.Namespace
             default = self._get_default_metavar_for_optional(action)
             args_string = self._format_args(action, default)
             return ', '.join(action.option_strings) + ' ' + args_string
-    formatter_class = lambda prog: ConciseHelpFormatter(prog, max_help_position=100, width=200)
+
     global argparser, spider_subparser, render_subparser
     argparser = configargparse.ArgumentParser(
         description=(
@@ -31,6 +31,9 @@ def parse_args(registered_renderer_refs: List[str]) -> (configargparse.Namespace
             "The waterspout.\n\n"
         )
     )
+
+    def formatter_class(prog):
+        return ConciseHelpFormatter(prog, max_help_position=100, width=200)
     # subparsers
     subparsers = argparser.add_subparsers(
         help=f'Please select an acceptable command for itsybitsy: "{command_spider}" or "{command_render}"'

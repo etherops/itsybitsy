@@ -114,8 +114,8 @@ async def render_tree(nodes: Dict[str, Node], parents: List[Ancestor], out=sys.s
             await asyncio.sleep(.1)
 
         if constants.ARGS.debug:
-            logs.logger.debug(f"Waiting for crawl to complete for {str(len(nodes_to_render))} "
-                              f"nodes at depth {str(len(parents))}...")
+            logs.logger.debug("Waiting for crawl to complete for %d nodes at depth %d..."
+                              , len(nodes_to_render), len(parents))
             logs.logger.debug(nodes_to_render)
             await asyncio.sleep(5)
 
@@ -175,7 +175,7 @@ def _render_node(node: Node, depth: int, prefix: str, is_last_sibling: bool, out
     # branch
     branch = ''
     if depth > 0:
-        bud = '{}'.format('└' if is_last_sibling else '|') if not node.warnings.get('CYCLE') else '<'
+        bud = f"{'└' if is_last_sibling else '|'}" if not node.warnings.get('CYCLE') else '<'
         branch += f"{bud}--{node.protocol.ref}--{terminus} "
 
     # hint display
@@ -259,8 +259,8 @@ async def _wait_for_service_names(nodes: Dict[str, Node], depth: int) -> None:
 
         if constants.ARGS.debug:
             remaining = _remaining_nodes_for_debugging(nodes)
-            logs.logger.debug(f"Waiting for remaining {str(len(remaining))} service names before rendering ascii "
-                              f"at depth {str(depth)}...")
+            logs.logger.debug("Waiting for remaining %d service names before rendering ascii at depth %d..."
+                              , len(remaining), depth)
             logs.logger.debug(remaining)
             await asyncio.sleep(5)
     else:

@@ -107,7 +107,7 @@ def parse_crawl_strategy_response(response: str, address: str, command: str) -> 
     header_line = lines.pop(0)
     node_transports = [_create_node_transport_from_crawl_strategy_response_line(header_line, data_line)
                        for data_line in lines]
-    logs.logger.debug(f"Found {len(node_transports)} children for {address}, command: \"{command[:100]}\"..")
+    logs.logger.debug("Found %d children for %s, command: \"%s\"..", len(node_transports), address, command[:100])
     return node_transports
 
 
@@ -127,7 +127,7 @@ def _create_node_transport_from_crawl_strategy_response_line(header_line: str, d
 
     # field transforms/requirements
     if 'mux' not in fields:
-        raise CreateNodeTransportException(f"protocol_mux missing from crawl strategy results")
+        raise CreateNodeTransportException("protocol_mux missing from crawl strategy results")
     if 'metadata' in fields:
         fields['metadata'] = dict(tuple(i.split('=') for i in fields['metadata'].split(',')))
     if 'conns' in fields:

@@ -53,17 +53,17 @@ class ProviderSSH(ProviderInterface):
         await _configure_connection_semaphore()
         if not ssh_connect_args:
             await _configure(address)
-        logs.logger.debug(f"Getting asyncio SSH connection for host {address}")
+        logs.logger.debug("Getting asyncio SSH connection for host %s", address)
         async with connection_semaphore:
             return await _get_connection(address)
 
     async def lookup_name(self, address: str, connection: SSHClientConnection) -> str:
-        logs.logger.debug(f"Getting service name for address {address}")
+        logs.logger.debug("Getting service name for address %s", address)
         node_name_command = constants.ARGS.ssh_name_command
         async with connection_semaphore:
             result = await connection.run(node_name_command, check=True)
         node_name = result.stdout.strip()
-        logs.logger.debug(f"Discovered name: {node_name} for address {address}")
+        logs.logger.debug("Discovered name: %s for address %s", node_name, address)
 
         return node_name
 
@@ -76,19 +76,20 @@ class ProviderSSH(ProviderInterface):
             raise e
         response = await connection.run(command)
         if response.stdout.strip().startswith('ERROR:'):
-            raise Exception('CRAWL ERROR: ' + response.stdout.strip().replace("\n", "\t"))
+            raise Exception("CRAWL ERROR: %s" %  # pylint: disable=broad-exception-raised
+                            response.stdout.strip().replace("\n", "\t"))
         return parse_crawl_strategy_response(response.stdout.strip(), address, command)
 
 
 async def _get_connection(host: str, retry_num=0) -> asyncssh.SSHClientConnection:
-    logs.logger.debug(f"Getting asyncio SSH connection for host {host}")
+    logs.logger.debug("Getting asyncio SSH connection for host %s", host)
     try:
         if bastion:
-            logs.logger.debug(f"Using bastion: {bastion}")
+            logs.logger.debug("Using bastion: %s", str(bastion))
             return await bastion.connect_ssh(host, **ssh_connect_args)
         return await asyncssh.connect(host, **ssh_connect_args)
-    except ChannelOpenError:
-        raise TimeoutException(f"asyncssh.ChannelOpenError encountered opening SSH connection for {host}")
+    except ChannelOpenError as e:
+        raise TimeoutException(f"asyncssh.ChannelOpenError encountered opening SSH connection for {host}") from e
     except Exception as e:
         if retry_num < 3:
             asyncio.ensure_future(_occupy_one_sempahore_space())
@@ -110,7 +111,7 @@ async def _occupy_one_sempahore_space() -> None:
     if (constants.ARGS.ssh_concurrency - connection_semaphore_spaces_used) > connection_semaphore_spaces_min:
         async with connection_semaphore:
             connection_semaphore_spaces_used += 1
-            logs.logger.debug(f"Using 1 additional semaphore space, ({connection_semaphore_spaces_used} used)")
+            logs.logger.debug("Using 1 additional semaphore space, (%d used)", connection_semaphore_spaces_used)
             forever_in_the_context_of_this_program = 86400
             await asyncio.sleep(forever_in_the_context_of_this_program)
 
@@ -169,10 +170,10 @@ def _get_ssh_config_for_host(host: str) -> dict:
     ssh_config = paramiko.SSHConfig()
     user_config_file = os.path.expanduser(constants.ARGS.ssh_config_file)
     try:
-        with open(user_config_file) as f:
+        with open(user_config_file, encoding="utf8") as f:
             ssh_config.parse(f)
     except FileNotFoundError:
-        print("{} file could not be found. Aborting.".format(user_config_file))
+        print("%s file could not be found. Aborting.", user_config_file)
         sys.exit(1)
 
     return ssh_config.lookup(host)
@@ -193,8 +194,8 @@ def _get_jump_server_for_host(config: dict) -> Optional[str]:
     bastion_config = _get_ssh_config_for_host(bastion_host)
 
     if 'hostname' not in bastion_config:
-        print(colored(f"Bastion (proxy) SSH Host: ({bastion_host}) misconfigured in {config_file_path}...  "
-              f"Please correct your ssh config! Contents:", 'red'))
+        print(colored("Bastion (proxy) SSH Host: (%s) misconfigured in %s...  Please correct your ssh config! Contents:"
+                      , bastion_host, config_file_path, 'red'))
         constants.PP.pprint(config)
         sys.exit(1)
 
