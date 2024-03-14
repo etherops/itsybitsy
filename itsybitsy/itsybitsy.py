@@ -61,7 +61,7 @@ def _parse_builtin_args():
 
 @contextmanager
 def _suppress_console_out():
-    with open(os.devnull, "w") as devnull:
+    with open(os.devnull, "w", encoding="utf-8") as devnull:
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         sys.stdout = devnull
@@ -137,12 +137,12 @@ async def _crawl_water_spout():
 
 
 async def _crawl_and_render_to_stderr_unless_quiet_is_specified(tree: Dict[str, node.Node]):
-    outfile = open(os.devnull, 'w') if constants.ARGS.quiet else sys.stderr
-    crawl_tasks = [
-        crawl.crawl(tree, []),
-        render_ascii.render_tree(tree, [], out=outfile, print_slowly_for_humans=True)
-    ]
-    await asyncio.gather(*crawl_tasks)
+    with open(os.devnull, 'w', encoding="utf-8") if constants.ARGS.quiet else sys.stderr as outfile:
+        crawl_tasks = [
+            crawl.crawl(tree, []),
+            render_ascii.render_tree(tree, [], out=outfile, print_slowly_for_humans=True)
+        ]
+        await asyncio.gather(*crawl_tasks)
 
 
 def _parse_seed_tree() -> Dict[str, node.Node]:

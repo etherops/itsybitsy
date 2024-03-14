@@ -22,14 +22,14 @@ child_cache: Dict[str, Dict[str, Node]] = {}  # {service_name: {node_ref, Node}}
 
 async def crawl(tree: Dict[str, Node], ancestors: list):
     depth = len(ancestors)
-    logs.logger.debug(f"Found {str(len(tree))} nodes to crawl at depth: {depth}")
+    logs.logger.debug("Found %s nodes to crawl at depth: %d", str(len(tree)), depth)
 
     conns, tree = await _open_connections(tree, ancestors)
     service_names, conns = await _lookup_service_names(tree, conns)
     await _assign_names_and_detect_cycles(tree, service_names, ancestors)
 
     if len(ancestors) > constants.ARGS.max_depth - 1:
-        logs.logger.debug(f"Reached --max-depth of {constants.ARGS.max_depth} at depth: {depth}")
+        logs.logger.debug("Reached --max-depth of %d at depth: %d", constants.ARGS.max_depth, depth)
         return
 
     nodes_with_conns = [(item[0], item[1], conn) for item, conn in zip(tree.items(), conns)]
@@ -69,7 +69,7 @@ async def _find_children_and_recursively_crawl(tree: Dict[str, Node], crawlable_
 async def _assign_names_and_detect_cycles(tree: Dict[str, Node], service_names: str, ancestors: list):
     for node_ref, service_name in zip(list(tree), service_names):
         if not service_name:
-            logs.logger.debug(f"Name lookup failed for {node_ref} with address: {tree[node_ref].address}")
+            logs.logger.debug("Name lookup failed for %s with address: %s", node_ref, tree[node_ref].address)
             service_name_cache[tree[node_ref].address] = None
             tree[node_ref].errors['NAME_LOOKUP_FAILED'] = True
             continue
@@ -126,8 +126,8 @@ def _handle_connection_open_exceptions(exceptions: List[Tuple[str, Exception]], 
                                        ancestors: List[str]):
     for node_ref, e in exceptions:
         if isinstance(e, (providers.TimeoutException, asyncio.TimeoutError)):
-            logs.logger.debug(f"Connection timeout when attempting to connect to {node_ref} with address: "
-                              f"{tree[node_ref].address}")
+            logs.logger.debug("Connection timeout when attempting to connect to %s with address: %s"
+                              , node_ref, tree[node_ref].address)
             tree[node_ref].errors['TIMEOUT'] = True
         else:
             child_of = f"child of {ancestors[len(ancestors)-1]}" if len(ancestors) > 0 else ''
@@ -140,16 +140,16 @@ def _handle_connection_open_exceptions(exceptions: List[Tuple[str, Exception]], 
 async def _open_connection(address: str, provider: providers.ProviderInterface):
     if address in service_name_cache:
         if service_name_cache[address] is None:
-            logs.logger.debug(f"Not opening connection: name is None ({address}")
+            logs.logger.debug("Not opening connection: name is None (%s)", address)
             return None
         if charlotte_web.skip_service_name(service_name_cache[address]):
-            logs.logger.debug(f"Not opening connection: skip ({service_name_cache[address]})")
+            logs.logger.debug("Not opening connection: skip (%s)", service_name_cache[address])
             return None
         if service_name_cache[address] in child_cache:
-            logs.logger.debug(f"Not opening connections: cached ({service_name_cache[address]})")
+            logs.logger.debug("Not opening connections: cached (%s)", service_name_cache[address])
             return None
 
-    logs.logger.debug(f"Opening connection: {address}")
+    logs.logger.debug("Opening connection: %s", address)
     return await provider.open_connection(address)
 
 
@@ -166,7 +166,7 @@ async def _lookup_service_names(tree: Dict[str, Node], conns: list) -> (List[str
     exceptions = [(ref, e) for ref, e in zip(list(tree), service_names) if isinstance(e, Exception)]
     for node_ref, e in exceptions:
         if isinstance(e, asyncio.TimeoutError):
-            print(colored(f"Timeout during name lookup for {node_ref}:", 'red'))
+            print(colored("Timeout during name lookup for %s:", node_ref, 'red'))
             print(colored({**vars(tree[node_ref]), 'crawl_strategy': tree[node_ref].crawl_strategy.name}, 'yellow'))
             traceback.print_tb(e.__traceback__)
             sys.exit(1)
@@ -180,12 +180,12 @@ async def _lookup_service_names(tree: Dict[str, Node], conns: list) -> (List[str
 async def _lookup_service_name(address: str, provider: providers.ProviderInterface,
                                connection: type) -> Optional[str]:
     if address in service_name_cache:
-        logs.logger.debug(f"Using cached service name ({service_name_cache[address]} for: {address}")
+        logs.logger.debug("Using cached service name (%s for: %s)", service_name_cache[address], address)
         return service_name_cache[address]
 
-    logs.logger.debug(f"Getting service name for address {address}")
+    logs.logger.debug("Getting service name for address %s", address)
     service_name = await provider.lookup_name(address, connection)
-    logs.logger.debug(f"Discovered name: {service_name} for address {address}")
+    logs.logger.debug("Discovered name: %s for address %s", service_name, address)
     service_name_cache[address] = service_name
 
     return service_name
@@ -194,12 +194,12 @@ async def _lookup_service_name(address: str, provider: providers.ProviderInterfa
 async def _crawl_with_hints(provider_ref: str, node_ref: str, address: str, service_name: str,
                             connection: type) -> (str, Dict[str, Node]):
     if service_name in child_cache:
-        logs.logger.debug(f"Found {len(child_cache[service_name])} children in cache for:{service_name}")
+        logs.logger.debug("Found %d children in cache for:%s", len(child_cache[service_name]), service_name)
         # we must to this copy to avoid various contention and infinite recursion bugs
         return node_ref, {r: replace(n, children={}, warnings=n.warnings.copy(), errors=n.errors.copy())
                           for r, n in child_cache[service_name].items()}
 
-    logs.logger.debug(f"Crawling with charlotte/web for {node_ref}")
+    logs.logger.debug("Crawling with charlotte/web for %s", node_ref)
     tasks, crawl_strategies = _compile_crawl_tasks_and_crawl_strategies(address, service_name,
                                                                         providers.get_provider_by_ref(provider_ref), connection)
 
@@ -222,7 +222,7 @@ async def _crawl_with_hints(provider_ref: str, node_ref: str, address: str, serv
                 continue
             child_ref, child = _create_node(crawl_strategy, node_transport)
             children[child_ref] = child
-    logs.logger.debug(f"Found {len(children)} children for {service_name}")
+    logs.logger.debug("Found %d children for %s", len(children), service_name)
     child_cache[service_name] = children
 
     return node_ref, children

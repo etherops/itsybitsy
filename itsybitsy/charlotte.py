@@ -72,7 +72,7 @@ class CrawlStrategy:
             except (ValueError, IndexError):
                 return self.child_provider['default']
 
-        logs.logger.fatal(f"child provider match type: {self.child_provider['type']} not supported")
+        logs.logger.fatal("child provider match type: %s not supported", self.child_provider['type'])
         raise CrawlStrategyException()
 
     def rewrite_service_name(self, service_name: str, node) -> str:
@@ -107,7 +107,7 @@ def init():
 def _load_crawl_strategies():
     for file in os.listdir(constants.CHARLOTTE_DIR):
         if file.endswith('.yaml'):
-            with open(os.path.join(constants.CHARLOTTE_DIR, file), 'r') as stream:
+            with open(os.path.join(constants.CHARLOTTE_DIR, file), 'r', encoding='utf-8') as stream:
                 dcts = safe_load_all(stream)
                 for dct in dcts:
                     if 'CrawlStrategy' == dct.get('type'):

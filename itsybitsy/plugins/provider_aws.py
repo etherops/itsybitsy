@@ -48,7 +48,7 @@ class ProviderAWS(ProviderInterface):
                                     '"TAG_NAME=VALUE" pairs')
 
     async def lookup_name(self, address: str, _: None) -> Optional[str]:
-        logs.logger.debug(f"Performing AWS name lookup for {address}")
+        logs.logger.debug("Performing AWS name lookup for %s", address)
         try:
             response = self.ec2_client.describe_network_interfaces(
                 Filters=[{
@@ -85,7 +85,7 @@ class ProviderAWS(ProviderInterface):
         :param service_name: specify the service name to look up
         :return: an IP address associated with the ec2 instance discovered
         """
-        logs.logger.debug(f"Performing reverse AWS name lookup for {service_name}")
+        logs.logger.debug("Performing reverse AWS name lookup for %s", service_name)
         try:
             ec2 = boto3.client('ec2')
             filters = self._parse_filters(service_name)
@@ -101,7 +101,7 @@ class ProviderAWS(ProviderInterface):
         try:
             ip = response['Reservations'][0]['Instances'][0]['PrivateIpAddress']
         except (KeyError, IndexError) as e:
-            print(colored(f"ec2 describe-instances response was insufficient for instance lookup", 'red'))
+            print(colored("ec2 describe-instances response was insufficient for instance lookup", 'red'))
             print(colored(f"- {e}", 'yellow'))
             constants.PP.pprint(colored(filters, 'yellow'))
             constants.PP.pprint(colored(response, 'yellow'))

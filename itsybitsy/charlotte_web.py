@@ -52,14 +52,13 @@ _protocols['HNT'] = PROTOCOL_HINT
 
 def spin_up():
     """It initializes the web from web.yaml"""
-    with open(os.path.join(constants.CHARLOTTE_DIR, _web_file), 'r') as stream:
+    with open(os.path.join(constants.CHARLOTTE_DIR, _web_file), 'r', encoding='utf-8') as stream:
         configs = _parse_yaml_config(stream)
         _parse_protocols(configs)
         _parse_skips(configs)
 
-
         # hints
-        global _hints
+        global _hints  # pylint: disable=global-variable-not-assigned
         if configs.get('hints'):
             for service_name, lst in configs.get('hints').items():
                 try:
