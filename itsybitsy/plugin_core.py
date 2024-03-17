@@ -93,7 +93,7 @@ class PluginFamilyRegistry:
             return self._plugin_registry[ref]
         except KeyError as e:
             print(colored(f"Attempted to load invalid plugin: {ref}", 'red'))
-            print(e, 'yellow')
+            print(colored(e, 'yellow'))
             sys.exit(1)
 
     def get_registered_plugin_refs(self) -> List[str]:

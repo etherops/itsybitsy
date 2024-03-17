@@ -108,7 +108,7 @@ class RenderCommand(Command):
 class SpiderCommand(Command):
     def parse_args(self):
         renderers.parse_renderer_args(self._argparser)
-        providers.parse_provider_args(self._argparser)
+        providers.parse_provider_args(self._argparser, constants.ARGS.disable_providers)
 
     def _initialize_plugins(self):
         renderers.register_renderers()

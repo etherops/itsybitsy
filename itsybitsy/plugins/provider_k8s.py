@@ -34,7 +34,7 @@ class ProviderKubernetes(ProviderInterface):
 
     @staticmethod
     def register_cli_args(argparser: PluginArgParser):
-        argparser.add_argument('--skip-containers', nargs='*', metavar='CONTAINER',
+        argparser.add_argument('--skip-containers', nargs='*', default=[], metavar='CONTAINER',
                                help='Ignore containers (uses substring matching)')
         argparser.add_argument('--namespace', required=True, help='k8s Namespace in which to discover services')
         argparser.add_argument('--label-selectors', nargs='*', metavar='SELECTOR',
