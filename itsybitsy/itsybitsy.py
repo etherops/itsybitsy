@@ -1,7 +1,7 @@
 # Copyright # Copyright 2020 Life360, Inc
 # SPDX-License-Identifier: Apache-2.0
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 import asyncio
 import configargparse
@@ -108,7 +108,7 @@ class RenderCommand(Command):
 class SpiderCommand(Command):
     def parse_args(self):
         renderers.parse_renderer_args(self._argparser)
-        providers.parse_provider_args(self._argparser)
+        providers.parse_provider_args(self._argparser, constants.ARGS.disable_providers)
 
     def _initialize_plugins(self):
         renderers.register_renderers()

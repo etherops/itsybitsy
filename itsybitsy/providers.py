@@ -88,8 +88,8 @@ class ProviderInterface(PluginInterface):
 _provider_registry = PluginFamilyRegistry(ProviderInterface)
 
 
-def parse_provider_args(argparser: configargparse.ArgParser):
-    _provider_registry.parse_plugin_args(argparser, constants.ARGS.disable_providers)
+def parse_provider_args(argparser: configargparse.ArgParser, disabled_provider_refs: Optional[List[str]] = None):
+    _provider_registry.parse_plugin_args(argparser, disabled_provider_refs)
 
 
 def register_providers():
