@@ -199,7 +199,7 @@ def _render_node(node: Node, depth: int, prefix: str, is_last_sibling: bool, out
     protocol_mux = f"port:{node.protocol_mux}" if node.protocol.blocking and depth > 0 else node.protocol_mux
 
     # print node
-    address = f" ({node.address})" if constants.ARGS.render_ascii_verbose else ''
+    address = f" ({node.provider}:{node.address})" if constants.ARGS.render_ascii_verbose else ''
     line = f"{prefix}{branch}{info}{concise_warnings}{concise_errors}{service_name} [{protocol_mux}]{address}"
     print(line, file=out)
 
@@ -305,6 +305,9 @@ def _synthesize_node_ref(node: Node, default: str) -> str:
     :return: a 'synthetic' node_ref
     """
     if node.service_name:
-        return f"{node.protocol.ref.lower()}_{node.service_name}"
+        synthetic_node_ref = f"{node.protocol.ref.lower()}_{node.service_name}"
+        if constants.ARGS.render_ascii_verbose:
+            synthetic_node_ref += f"_{node.provider}"
+        return synthetic_node_ref
 
     return default

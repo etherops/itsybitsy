@@ -38,7 +38,7 @@ setup(
     extras_require={
         'test': [
             'prospector~=1.2',
-            'pytest~=6.2',
+            'pytest~=7.0',
             'pytest-asyncio~=0.14',
             'pytest-cov~=2.10',
             'pytest-mock~=3.4'

@@ -1,3 +1,5 @@
+import re
+from typing import Union
 import pytest
 from dataclasses import replace
 
@@ -61,93 +63,120 @@ def test_render_tree_case_respect_cli_highlight_services(highlighted_service, tr
     assert f"color=\"yellow:black:yellow\"" in captured.out
 
 
-def test_render_tree_case_node_has_service_name(tree_named, capsys):
+@pytest.mark.parametrize('include_provider', [True, False])
+def test_render_tree_case_node_has_service_name(tree_named, capsys, cli_args_mock, include_provider):
     """single node - not from hint, with service name, no children, no errs/warns"""
     # arrange/act
+    cli_args_mock.render_graphviz_node_include_provider = include_provider
     render_graphviz.render_tree(tree_named, True)
+    n = tree_named[list(tree_named)[0]]
     captured = capsys.readouterr()
+    node_line = _grep_head_1(n.service_name, captured.out)
 
     # assert
-    assert f"{tree_named[list(tree_named)[0]].service_name} [style=bold]" in captured.out
+    if include_provider:
+        assert f"\t\"{n.service_name} ({n.provider})\" [style=bold]" == node_line
+    else:
+        assert f"\t{n.service_name} [style=bold]" == node_line
 
 
-def test_render_tree_case_node_no_service_name(tree, capsys):
+@pytest.mark.parametrize('include_provider', [True, False])
+def test_render_tree_case_node_no_service_name(tree, capsys, cli_args_mock, include_provider):
     """single node - not from hint, no service name, no children, no errs/warns"""
     # arrange/act
+    cli_args_mock.render_graphviz_node_include_provider = include_provider
     render_graphviz.render_tree(tree, True)
+    n_ref = list(tree)[0]
+    n = tree[n_ref]
     captured = capsys.readouterr()
 
     # assert
-    assert f"UNKNOWN\n({list(tree)[0]})\" [style=bold]" in captured.out
+    if include_provider:
+        assert f"UNKNOWN\n({n_ref}) ({n.provider})\" [style=bold]" in captured.out
+    else:
+        assert f"UNKNOWN\n({n_ref})\" [style=bold]" in captured.out
 
 
 def test_render_tree_case_node_is_database(tree_named, capsys):
     """Database node rendered as such"""
     # arrange
-    tree = tree_named
-    list(tree.values())[0].protocol = replace(list(tree.values())[0].protocol, is_database=True)
+    tn = tree_named
+    n = list(tn.values())[0]
+    n.protocol = replace(n.protocol, is_database=True)
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
 
     # assert
-    assert f"{list(tree.values())[0].service_name} [shape=cylinder style=bold]" in captured.out
+    assert _grep_head_1(rf"\t\"?{n.service_name}", captured.out)
 
 
 def test_render_tree_case_node_is_containerized(tree_named, capsys):
     """Containerized node rendered as such"""
     # arrange
-    tree = tree_named
-    list(tree.values())[0].containerized = True
+    tn = tree_named
+    n = list(tn.values())[0]
+    n.containerized = True
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
+    node_line = _grep_head_1(rf"\t\"?{n.service_name}", captured.out)
 
     # assert
-    assert f"{list(tree.values())[0].service_name} [shape=septagon style=bold]" in captured.out
+    assert node_line
+    assert "[shape=septagon style=bold]" in node_line
 
 
 def test_render_tree_case_node_errors(tree_named, capsys):
     """Node with errors rendered as such"""
     # arrange
-    tree = tree_named
-    list(tree.values())[0].errors = {'FOO': True}
+    tn = tree_named
+    n = list(tn.values())[0]
+    n.errors = {'FOO': True}
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
+    node_line = _grep_head_1(n.service_name, captured.out)
 
     # assert
-    assert f"{list(tree.values())[0].service_name} [color=red style=bold]" in captured.out
+    assert node_line
+    assert "[color=red style=bold]" in node_line
 
 
 def test_render_tree_case_node_warnings(tree_named, capsys):
     """Node with warnings rendered as such"""
     # arrange
-    tree = tree_named
-    list(tree.values())[0].warnings = {'FOO': True}
+    tn = tree_named
+    n = list(tn.values())[0]
+    n.warnings = {'FOO': True}
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
+    node_line = _grep_head_1(n.service_name, captured.out)
 
     # assert
-    assert f"{list(tree.values())[0].service_name} [color=darkorange style=bold]" in captured.out
+    assert node_line
+    assert "[color=darkorange style=bold]" in node_line
 
 
 def test_render_tree_case_node_name_cleaned(tree, capsys):
     """Test that the node name is cleaned during render"""
     # arrange
-    list(tree.values())[0].service_name = '"foo:bar#baz"'
+    n = list(tree.values())[0]
+    n.service_name = '"foo:bar#baz"'
 
     # act
     render_graphviz.render_tree(tree, True)
     captured = capsys.readouterr()
+    node_line = _grep_head_1("foo_bar_baz", captured.out)
 
     # assert
-    assert 'foo_bar_baz [style=bold]' in captured.out
+    assert node_line
+    assert node_line.lstrip("\t\"").startswith("foo_bar_baz")
 
 
 def test_render_tree_case_edge_blocking_child(tree, node_fixture_factory, dummy_protocol_ref, capsys):
@@ -164,10 +193,11 @@ def test_render_tree_case_edge_blocking_child(tree, node_fixture_factory, dummy_
     # act
     render_graphviz.render_tree(tree, True)
     captured = capsys.readouterr()
+    edge_line = _grep_head_1(rf"{child.service_name}.*->.*{final_child.service_name}", captured.out)
 
     # assert
-    assert f"{child.service_name} -> {final_child.service_name} [label={dummy_protocol_ref} color=\"\" style=\"\"]"\
-           in captured.out
+    assert f"[label={dummy_protocol_ref}" in edge_line
+    assert "color=\"\" style=\"\"]" in edge_line
 
 
 def test_render_tree_case_edge_blocking_from_top_child(tree, node_fixture, capsys):
@@ -182,12 +212,13 @@ def test_render_tree_case_edge_blocking_from_top_child(tree, node_fixture, capsy
     # act
     render_graphviz.render_tree(tree, True)
     captured = capsys.readouterr()
+    edge_line = _grep_head_1(rf"{parent.service_name}.*->.*{child.service_name}", captured.out)
 
     # assert
-    assert f"{parent.service_name} [style=bold]" in captured.out
-    assert f"{child.service_name} [style=bold]" in captured.out
-    assert f"{parent.service_name} -> {child.service_name} [label={child.protocol.ref} color=\"\" style=bold]"\
-           in captured.out
+    assert _grep_head_1(rf"{parent.service_name}(?!.*->)", captured.out)
+    assert _grep_head_1(rf"(?<!-> \"){child.service_name}", captured.out)  # w/ protocol
+    assert _grep_head_1(rf"(?<!-> ){child.service_name}", captured.out)  # w/out protocol
+    assert "style=bold]" in edge_line
 
 
 def test_render_tree_case_edge_blocking_from_top_once_child(tree_named, node_fixture_factory, dummy_protocol_ref, capsys):
@@ -196,8 +227,8 @@ def test_render_tree_case_edge_blocking_from_top_once_child(tree_named, node_fix
     from top in the 1 scenario where it is - and regular blocking (but not from top) in the other
     """
     # arrange
-    tree = tree_named
-    parent, blocking_service_name, nonblocking_service_name = (list(tree.values())[0], 'foo', 'bar')
+    tn = tree_named
+    parent, blocking_service_name, nonblocking_service_name = (list(tn.values())[0], 'foo', 'bar')
     blocking_child = replace(node_fixture_factory(), service_name=blocking_service_name)
     blocking_child.protocol = replace(blocking_child.protocol, blocking=True)
     nonblocking_child = replace(node_fixture_factory(), service_name=nonblocking_service_name)
@@ -206,14 +237,12 @@ def test_render_tree_case_edge_blocking_from_top_once_child(tree_named, node_fix
     nonblocking_child.children = {'blocking_child': blocking_child}
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
 
     # assert
-    assert f"{parent.service_name} -> {blocking_service_name} [label={dummy_protocol_ref} color=\"\" style=bold]"\
-           in captured.out
-    assert f"{nonblocking_service_name} -> {blocking_service_name} [label={dummy_protocol_ref} color=\"\" style=\"\"]"\
-           in captured.out
+    assert _grep_head_1(rf"{parent.service_name}.*->.*{blocking_service_name}.*style=bold", captured.out)
+    assert _grep_head_1(rf"{nonblocking_service_name}.*->.*{blocking_service_name}.*style=\"\"", captured.out)
 
 
 def test_render_tree_case_edge_child_nonblocking(tree_named, node_fixture, capsys):
@@ -221,16 +250,16 @@ def test_render_tree_case_edge_child_nonblocking(tree_named, node_fixture, capsy
     # arrange
     child_node, child_protocol_ref = (replace(node_fixture, service_name='dummy_child'), 'DUM')
     child_node.protocol = replace(child_node.protocol, ref=child_protocol_ref, blocking=False)
-    tree = tree_named
-    list(tree.values())[0].children = {'child_service_ref': child_node}
+    tn = tree_named
+    n = list(tn.values())[0]
+    n.children = {'child_service_ref': child_node}
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
 
     # assert
-    assert f"{list(tree.values())[0].service_name} -> {child_node.service_name} [label={child_protocol_ref} " \
-           f'color="" style=",dashed"]' in captured.out
+    assert _grep_head_1(rf"{n.service_name}.*->.*{child_node.service_name}.*style=\",dashed", captured.out)
 
 
 def test_render_tree_case_edge_child_defunct_hidden(tree, node_fixture, cli_args_mock, capsys):
@@ -254,50 +283,66 @@ def test_render_tree_case_edge_child_defunct_shown(tree_named, node_fixture, cli
     # arrange
     cli_args_mock.hide_defunct = False
     child_node = replace(node_fixture, service_name='child_service', warnings={'DEFUNCT': True})
-    tree = tree_named
-    list(tree.values())[0].children = {'child_service_ref': child_node}
+    tn = tree_named
+    n = list(tn.values())[0]
+    n.children = {'child_service_ref': child_node}
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
+    edge_line = _grep_head_1(rf"{n.service_name}.*->.*{child_node.service_name}", captured.out)
 
     # assert
-    assert f"{list(tree.values())[0].service_name} -> {child_node.service_name} [label=\"{child_node.protocol.ref} " \
-           f'(DEFUNCT)" color=darkorange penwidth=3 style="bold,dotted,filled"]' in captured.out
+    assert edge_line
+    assert f"[label=\"{child_node.protocol.ref} (DEFUNCT)" in edge_line
+    assert "color=darkorange" in edge_line
+    assert "penwidth=3" in edge_line
+    assert "style=\"bold,dotted,filled" in edge_line
 
 
 def test_render_tree_case_edge_child_errors(tree_named, node_fixture, capsys):
     """Child with errors shown correctly"""
     # arrange
     child_node = replace(node_fixture, service_name='child_service', errors={'FOO': True})
-    tree = tree_named
-    list(tree.values())[0].children = {'child_service_ref': child_node}
+    tn = tree_named
+    n = list(tn.values())[0]
+    n.children = {'child_service_ref': child_node}
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
+    node_line = _grep_head_1(rf"\t\"?{child_node.service_name}", captured.out)
+    edge_line = _grep_head_1(rf"{n.service_name}.*->.*{child_node.service_name}", captured.out)
 
     # assert
-    assert f"{child_node.service_name} [color=red style=bold]" in captured.out
-    assert f"{list(tree.values())[0].service_name} -> {child_node.service_name} [label=\"{child_node.protocol.ref} " \
-           f'(FOO)" color=red style=bold]' in captured.out
+    assert node_line
+    assert "color=red" in node_line
+    assert "style=bold" in node_line
+    assert edge_line
+    assert "color=red" in edge_line
+    assert "style=bold" in edge_line
 
 
 def test_render_tree_case_edge_child_hint(tree_named, node_fixture, capsys):
     """Child from_hint shown correctly"""
     # arrange
     child_node = replace(node_fixture, service_name='child_service', from_hint=True)
-    tree = tree_named
-    list(tree.values())[0].children = {'child_service_ref': child_node}
+    tn = tree_named
+    n = list(tn.values())[0]
+    n.children = {'child_service_ref': child_node}
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
+    edge_line = _grep_head_1(rf"{n.service_name}.*->.*{child_node.service_name}", captured.out)
 
     # assert
-    assert child_node.service_name in captured.out
-    assert f"{list(tree.values())[0].service_name} -> {child_node.service_name} [label=\"{child_node.protocol.ref} " \
-           f'(HINT)" color=":blue" penwidth=3 style=bold]' in captured.out
+    assert _grep_head_1(rf"\t\"?{child_node.service_name}", captured.out)
+    assert edge_line
+    assert f"[label=\"{child_node.protocol.ref} (HINT)" in edge_line
+    assert "color=\":blue\"" in edge_line
+    assert "penwidth=3" in edge_line
+    assert "style=bold" in edge_line
 
 
 @pytest.mark.parametrize('containerized,shape_string', [(False, ''), (True, 'shape=septagon ')])
@@ -314,18 +359,27 @@ def test_render_tree_case_node_hint_merged(containerized, shape_string, tree_nam
     child_node_hint.protocol = protocol_fixture
     child_node_hint.protocol_mux = protocol_mux
     child_node_hint.containerized = containerized
-    tree = tree_named
-    list(tree.values())[0].children = {'crawled': child_node_crawled, 'hinted': child_node_hint}
+    tn = tree_named
+    n = list(tn.values())[0]
+    n.children = {'crawled': child_node_crawled, 'hinted': child_node_hint}
 
     # act
-    render_graphviz.render_tree(tree, True)
+    render_graphviz.render_tree(tn, True)
     captured = capsys.readouterr()
+    child_node_line = _grep_head_1(f"\t\"?{child_node_hint.service_name}", captured.out)
+    edge_line = _grep_head_1(rf"{n.service_name}.*->.*{child_node_hint.service_name}", captured.out)
 
     # assert
     assert 'UNKNOWN' not in captured.out
-    assert f"{child_node_hint.service_name} [color=red {shape_string}style=bold]" in captured.out
-    assert f"{list(tree.values())[0].service_name} -> {child_node_hint.service_name} [label=\"{protocol_ref} " \
-           f"({error},HINT)\" color=\"red:blue\" penwidth=3 style=bold]" in captured.out
+    assert child_node_line
+    assert "color=red" in child_node_line
+    assert shape_string in child_node_line
+    assert "style=bold" in child_node_line
+    assert edge_line
+    assert f"({error},HINT)\"" in edge_line
+    assert "color=\"red:blue\"" in edge_line
+    assert "penwidth=3" in edge_line
+    assert "style=bold" in edge_line
 
 
 def test_render_tree_case_node_nonhint_not_merged(tree_named, protocol_fixture, node_fixture_factory, capsys):
@@ -354,6 +408,11 @@ def test_render_tree_case_node_nonhint_not_merged(tree_named, protocol_fixture, 
     captured = capsys.readouterr()
 
     # assert
-    assert child_1_name in captured.out
-    assert child_2_name in captured.out
-    assert child_3_name in captured.out
+    assert _grep_head_1(f"\t\"?{child_1_name}", captured.out)
+    assert _grep_head_1(f"\t\"?{child_2_name}", captured.out)
+    assert _grep_head_1(f"\t\"?{child_3_name}", captured.out)
+
+
+def _grep_head_1(pattern: str, lines: str) -> Union[str, bool]:
+    """it's like bash `echo $lines | grep $pattern | head -n 1` but in python"""
+    return next((line for line in lines.split("\n") if re.search(pattern, line)), None) or False

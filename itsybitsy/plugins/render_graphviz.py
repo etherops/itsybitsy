@@ -32,6 +32,8 @@ class RendererGraphviz(renderers.RendererInterface):
                                     f"\"{constants.GRAPHVIZ_RANKDIR_AUTO}\" automatically renders for best orientation")
         argparser.add_argument('--highlight-services', nargs='+', metavar='SERVICE',
                                help='A list of services to highlight in graphviz.')
+        argparser.add_argument('--node-include-provider', action='store_true', default=False,
+                               help='Include the provider in node names (e.g. "myservice (AWS))')
 
 
 class RendererGraphvizSource(renderers.RendererInterface):
@@ -110,8 +112,8 @@ def _compile_digraph(node_ref: str, node: Node, blocking_from_top: bool = True) 
 
 def _compile_edge(parent_name: str, child: Node, child_name: str, child_blocking_from_top: bool) -> None:
     parent_or_child_is_highlighted = constants.ARGS.render_graphviz_highlight_services and \
-                                     True in [name in [parent_name, child_name] for
-                                              name in constants.ARGS.render_graphviz_highlight_services]
+                                     any(parent_name.startswith(name) or child_name.startswith(name) for
+                                              name in constants.ARGS.render_graphviz_highlight_services)
     edge_str = f"{parent_name}.{child.protocol.ref}.{child_name}"
     if edge_str not in edges_compiled:
         defunct = child.warnings.get('DEFUNCT')
@@ -140,4 +142,7 @@ def _compile_node(node: Node, name: str, blocking_from_top: bool) -> None:
 
 def _node_name(node: Node, node_ref: str) -> str:
     name = node.service_name or f"UNKNOWN\n({node_ref})"
-    return renderers.clean_service_name(name)
+    clean_name = renderers.clean_service_name(name)
+    if constants.ARGS.render_graphviz_node_include_provider:
+        clean_name = clean_name + f" ({node.provider})"
+    return clean_name
